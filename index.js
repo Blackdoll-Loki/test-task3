@@ -56,14 +56,13 @@ class PowerStation {
   }
 
   get timeRemaining() {
-    let totalOutput = this.totalOutputPower(); 
-    let netPower = this._input - totalOutput; 
-    
-    if (totalOutput === 0) return "99:59"; 
+    let totalOutput = this.totalOutputPower; 
+    if (totalOutput === 0) return "99:59"; // Если нет нагрузки, всегда возвращаем 99:59
   
+    let netPower = this._input - totalOutput; 
     let remainingTime = netPower > 0 
-      ? (this.batteryCapacity - this._capacity) / netPower
-      : this._capacity / Math.abs(netPower); 
+      ? (this.batteryCapacity - this._capacity) / netPower // Время до полного заряда
+      : this._capacity / Math.abs(netPower); // Время до разрядки
   
     let minutes = Math.ceil(remainingTime * 60);
     let hours = Math.floor(minutes / 60);
@@ -77,11 +76,13 @@ class PowerStation {
   }
 
   _updateStatus() {
-    if (this._input > this.maximumInput || this._output > this.maximumOutput) {
+    let totalOutput = this.totalOutputPower;
+  
+    if (this._input > this.maximumInput || totalOutput > this.maximumOutput) {
       this._status = "overload";
-    } else if (this._input > this._output) {
+    } else if (this._input > totalOutput) {
       this._status = "charging"; 
-    } else if (this._input < this._output) {
+    } else if (this._input < totalOutput) {
       this._status = "discharging"; 
     } else {
       this._status = "idle";
@@ -90,20 +91,20 @@ class PowerStation {
 
   _startTimer() {
     if (this._timer) return; 
-
+  
     this._lastUpdateTime = Date.now();
     this._timer = setInterval(() => {
       let now = Date.now();
       let deltaTime = (now - this._lastUpdateTime) / 3600000; 
       this._lastUpdateTime = now;
-
-      let totalOutput = this.totalOutputPower();
+  
+      let totalOutput = this.totalOutputPower;
       let capacityChange = (this._input - totalOutput) * deltaTime;
       let newCapacity = Math.max(0, Math.min(this.batteryCapacity, this._capacity + capacityChange));
-
+  
       this.updateBatteryLevel(newCapacity); 
-
-      if (this._input === 0 && this._output === 0) {
+  
+      if (this._input === 0 && totalOutput === 0) {
         this._stopTimer(); 
       }
     }, 1000);
