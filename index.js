@@ -5,7 +5,7 @@ class PowerStation {
     this.maximumInput = maximumInput;
     this.maximumOutput = maximumOutput;
     this._input = 0;
-    this._output = 0;
+    this._outputs = new Map();
     this._percentage = 100;
     this._capacity = batteryCapacity;
     this._outputIds = [];
@@ -17,27 +17,26 @@ class PowerStation {
     let w = voltage * current;
     let newInput = this._input + w;
     this._input = Math.min(newInput, this.maximumInput);
-    this._updateStatus();
     this._startTimer();
   }
 
   connectOutput(outputId) {
-    this._outputIds.push(outputId);
-  }
-
-  updateOutput(outputId, voltage, current) {
-    let isConnected = this._outputIds.includes(outputId)
-    let w = voltage * current;
-    let newOutput = this._output + w;
-    if( isConnected){
-      this._output = Math.min(newOutput, this.maximumOutput);
-      this._updateStatus();
-      this._startTimer();
+    if (!this._outputs.has(outputId)) {
+      this._outputs.set(outputId, 0); 
     }
   }
 
+  updateOutput(outputId, voltage, current) {
+      let w = voltage * current;
+      this._outputs.set(outputId, w); 
+      this._startTimer();
+  }
+
   disconnectOutput(outputId) {
-    this._outputIds = this._outputIds.filter((el) => el !== outputId);
+    this._outputs.delete(outputId); 
+    if (this._outputs.size === 0 && this._input === 0) {
+      this._stopTimer();
+    }
   }
 
   updateBatteryLevel(capacityLeft) {
@@ -53,12 +52,24 @@ class PowerStation {
   }
 
   get totalOutputPower() {
-    
+    return Array.from(this._outputs.values()).reduce((sum, power) => sum + power, 0);
   }
 
   get timeRemaining() {
-    if (this._output === 0) return Infinity;
-    return this._capacity / this._output; 
+    let totalOutput = this.totalOutputPower(); 
+    let netPower = this._input - totalOutput; 
+    
+    if (totalOutput === 0) return "99:59"; 
+  
+    let remainingTime = netPower > 0 
+      ? (this.batteryCapacity - this._capacity) / netPower
+      : this._capacity / Math.abs(netPower); 
+  
+    let minutes = Math.ceil(remainingTime * 60);
+    let hours = Math.floor(minutes / 60);
+    minutes %= 60;
+  
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   }
 
   get status() {
@@ -86,7 +97,8 @@ class PowerStation {
       let deltaTime = (now - this._lastUpdateTime) / 3600000; 
       this._lastUpdateTime = now;
 
-      let capacityChange = (this._input - this._output) * deltaTime;
+      let totalOutput = this.totalOutputPower();
+      let capacityChange = (this._input - totalOutput) * deltaTime;
       let newCapacity = Math.max(0, Math.min(this.batteryCapacity, this._capacity + capacityChange));
 
       this.updateBatteryLevel(newCapacity); 
